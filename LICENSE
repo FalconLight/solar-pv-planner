@@ -1,0 +1,26 @@
+Copyright (c) 2026 FalconLight. All rights reserved.
+
+Solar PV Planner (the "Software"): source code, documentation, text, design and
+translations in this repository.
+
+This Software is proprietary. No permission is granted to use, copy, modify,
+merge, publish, distribute, sublicense, host, or sell the Software or any
+copy or part of it, or to create derivative works from it, without the prior
+written permission of the copyright holder.
+
+Public hosting. This repository and its web page are publicly visible so that
+the Software can be viewed and evaluated. That visibility does not grant any
+license: apart from the rights that GitHub's Terms of Service give to other
+GitHub users on its platform (viewing and forking public repositories), no
+rights are granted beyond viewing the hosted page for personal evaluation.
+
+Third-party material is not part of the Software and is not covered by this
+license. The page loads Leaflet (BSD-2-Clause), map tiles and data from
+OpenStreetMap contributors (ODbL), imagery from Esri, and solar data from
+NASA POWER. They are provided by their own services under their own terms.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED. ITS RESULTS ARE ESTIMATES ONLY AND MUST NOT BE USED AS THE SOLE BASIS
+FOR ELECTRICAL, STRUCTURAL OR FINANCIAL DECISIONS. IN NO EVENT SHALL THE
+COPYRIGHT HOLDER BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY ARISING
+FROM THE USE OF THE SOFTWARE.

@@ -128,4 +128,4 @@ Modelo de cielo isotrópico con fracción difusa de Erbs, pérdida por azimut ap
 
 ## Licencia
 
-Aún sin definir. Si vas a publicar el repositorio, añade un archivo `LICENSE` (por ejemplo MIT) antes de compartirlo.
+© 2026 FalconLight. **Todos los derechos reservados** (licencia propietaria, ver [`LICENSE`](LICENSE)). El código es visible públicamente para poder evaluarlo, pero no se concede permiso para usarlo, copiarlo, modificarlo ni redistribuirlo sin autorización escrita. Las librerías, mapas y datos de terceros (Leaflet, OpenStreetMap, Esri, NASA POWER) siguen sus propios términos.
