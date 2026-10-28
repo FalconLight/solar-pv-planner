@@ -1,0 +1,258 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Solar PV Planner</title>
+<meta name="description" content="Plan a solar PV installation on a map: draw roof zones, size panels, energy, structure loads, strings, MPPT, batteries and get a wiring diagram.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%E2%98%80%3C/text%3E%3C/svg%3E">
+<script src="js/theme-boot.js?v=1.0.0"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css">
+<link rel="stylesheet" href="css/style.css?v=1.0.0">
+</head>
+<body>
+<header class="top"><h1>☀<span class="ttl"> Solar PV Planner</span></h1>
+  <div class="tabs" id="tabsL">
+    <button class="tab" data-t="site" aria-expanded="false" aria-controls="d-site"><span class="n">1</span><span class="lb">Site &amp; sun</span></button>
+    <button class="tab" data-t="layout" aria-expanded="false" aria-controls="d-layout"><span class="n">2</span><span class="lb">Panels &amp; layout</span></button>
+  </div>
+  <div class="tabs right" id="tabsR">
+    <button class="tab" data-t="power" aria-expanded="false" aria-controls="d-power"><span class="n">3</span><span class="lb">Power &amp; weight</span></button>
+    <button class="tab" data-t="system" aria-expanded="false" aria-controls="d-system"><span class="n">4</span><span class="lb">Electrical design</span></button>
+    <button class="tab" data-t="diagram" aria-expanded="false" aria-controls="d-diagram"><span class="n">5</span><span class="lb">Diagram</span></button>
+    <button class="tab" data-t="export" aria-expanded="false" aria-controls="d-export"><span class="n">6</span><span class="lb">Export &amp; share</span></button>
+  </div>
+  <select id="lang" aria-label="Language" style="width:auto"><option value="en">English</option><option value="es">Español</option></select>
+  <button class="tab icon" id="helpBtn" aria-label="Tutorial">?</button>
+  <button class="tab icon" id="themeBtn" aria-label="Theme: auto">◐</button></header>
+
+<div id="stage">
+  <div id="map"></div>
+
+  <!-- both panels are moved into Leaflet's corner containers by initMap(): zones tool under the zoom buttons, search under the layer switch -->
+  <div id="drawPanel" class="lpanel">
+    <button class="lp-head" id="dpToggle" aria-expanded="true" aria-controls="dpBody" aria-label="Zones"><span class="ic" aria-hidden="true">✏</span><span class="lb">Zones</span><span class="chev" aria-hidden="true">▾</span></button>
+    <div class="lp-body" id="dpBody">
+      <button class="btn" id="bDraw">✏ Draw zone</button>
+      <div class="lp-row" id="dpDrawing" hidden><button class="btn sec" id="bUndo">Undo point</button><button class="btn" id="bFin">Finish</button></div>
+      <button class="btn sec" id="bClr" hidden>Clear all zones</button>
+      <small id="drawHint" aria-live="polite"></small>
+    </div>
+  </div>
+  <div id="searchPanel" class="lpanel">
+    <button class="lp-head" id="spToggle" aria-expanded="false" aria-controls="spBody" aria-label="Search place or coordinates"><span class="ic" aria-hidden="true">🔍</span></button>
+    <div class="lp-body" id="spBody" hidden>
+      <div class="srow"><input id="q" placeholder="Quito, Ecuador — or -0.19, -78.50" aria-label="Search place or coordinates"><button class="btn" id="bSearch">Search</button></div>
+      <div class="srow"><input id="lat" type="text" inputmode="decimal" value="-0.2" aria-label="Latitude"><input id="lon" type="text" inputmode="decimal" value="-78.5" aria-label="Longitude"><button class="btn sec" id="bLoc">My location</button></div>
+    </div>
+  </div>
+
+  <div id="onboard" class="hcard">
+    <h3>Plan your solar system in 4 steps</h3>
+    <ol><li>Find your place — use the 🔍 search (top-right) or pan and zoom the map</li><li>Draw the roof or lot with ✏ Draw zone — the sun data is calculated for it automatically</li><li>Choose panels and how many your budget allows</li><li>Review power, cost and wiring in the side panels</li></ol>
+    <div class="btns"><button class="btn" id="obDraw">✏ Draw zone</button><button class="btn sec" id="obRect">Use a simple rectangle instead</button><button class="btn sec" id="obTour">Take the tutorial</button></div>
+  </div>
+
+  <div class="hcard row pop" id="zoneEd" style="display:none">
+    <label>Zone name<input id="zName"></label>
+    <label>Azimuth offset (°) · 0 = faces equator<input id="zRot" type="number" value="0" min="-180" max="180"></label>
+    <button class="btn sec" id="zAlign">Align to longest edge</button>
+    <button class="btn sec" id="zDel">Delete zone</button>
+  </div>
+
+  <div id="hud">
+    <div class="hcard" id="drawStatus" role="status" aria-live="polite" style="display:none"></div>
+    <div id="zoneBar" class="btns"></div>
+    <div class="hcard" id="toast" role="status" aria-live="polite" style="display:none"></div>
+    <div class="hcard" id="hudMain">
+      <div class="stepper"><b>Panels</b><button class="btn sec" id="nMinus" aria-label="Remove one string of panels">−</button><input id="nInput" type="number" min="0" value="0" aria-label="Number of panels"><button class="btn sec" id="nPlus" aria-label="Add one string of panels">+</button><input id="nRange" type="range" min="0" max="1" value="0" aria-label="Number of panels"><span id="nFit" aria-live="polite"></span></div>
+      <div id="hudStats"></div>
+    </div>
+  </div>
+
+  <aside class="drawer left" id="d-site" role="dialog" aria-label="Site &amp; sun" tabindex="-1">
+    <div class="dh"><h2>Site &amp; sun</h2><button class="btn sec x" data-close="site" aria-label="Close">✕</button></div>
+    <div class="card"><small class="note" style="margin:0">Demo — estimates only; verify with datasheets, local code and a licensed installer.</small>
+      <p class="note" id="srcNote" aria-live="polite">Solar data (NASA POWER 25-yr climatology: GHI &amp; temperature) loads automatically for your zone, or for the map centre until you draw one.</p>
+      <p class="note">Edit: drag a white corner to move it · click a small dot between two corners to add one · double-click (or right-click) a corner to delete it · drag inside the selected zone to move it · Esc cancels drawing · Del deletes the selected zone.</p></div>
+    <div class="card"><h2>Solar light calculator</h2>
+      <div class="row">
+        <label>Tilt (°)<input id="tilt" type="number" value="15" min="0" max="90"></label>
+        <label>Azimuth deviation (°) — rectangle mode only<input id="dev" type="number" value="0" min="0" max="180"></label>
+      </div>
+      <div class="btns"><button class="btn" id="bTiltA">Best tilt: annual</button><button class="btn sec" id="bTiltW">Best tilt: worst month (off-grid)</button></div>
+      <div id="siteKpi" style="margin-top:12px"></div>
+    </div>
+    <div class="card"><h2>Monthly irradiation (kWh/m²/day = peak sun hours)</h2><div id="siteChart"></div><div id="siteTable"></div></div>
+  </aside>
+
+  <aside class="drawer left" id="d-layout" role="dialog" aria-label="Panels &amp; layout" tabindex="-1">
+    <div class="dh"><h2>Panels &amp; layout</h2><button class="btn sec x" data-close="layout" aria-label="Close">✕</button></div>
+    <div class="card"><h2>Panel drawer — module</h2>
+      <label>Library<select id="plib"></select></label>
+      <div class="row" style="margin-top:8px">
+        <label>Pmax (W)<input id="p" type="number" value="400"></label>
+        <label>Length (m)<input id="pl" type="number" step="0.001" value="1.722"></label>
+        <label>Width (m)<input id="pw" type="number" step="0.001" value="1.134"></label>
+        <label>Weight (kg)<input id="kg" type="number" step="0.1" value="21.5"></label>
+      </div>
+      <details class="adv"><summary>Electrical parameters (datasheet)</summary>
+      <div class="row" style="margin-top:8px">
+        <label>Voc (V)<input id="voc" type="number" step="0.1" value="37.2"></label>
+        <label>Isc (A)<input id="isc" type="number" step="0.1" value="13.7"></label>
+        <label>Vmp (V)<input id="vmp" type="number" step="0.1" value="31"></label>
+        <label>Imp (A)<input id="imp" type="number" step="0.1" value="12.9"></label>
+        <label>Voc coef (%/°C)<input id="bv" type="number" step="0.01" value="-0.27"></label>
+        <label>Pmax coef (%/°C)<input id="bp" type="number" step="0.01" value="-0.35"></label>
+        <label>Max series fuse (A)<input id="fuse" type="number" value="25"></label>
+      </div></details>
+      <p class="note">Pick a standard module or edit any field for a custom one.</p>
+      <h2 style="margin-top:14px">Surface</h2>
+      <details class="adv" id="rectBox"><summary>Rectangle surface (only if no zone is drawn)</summary>
+      <div class="row" style="margin-top:8px">
+        <label>Width (m)<input id="aw" type="number" step="0.1" value="12"></label>
+        <label>Depth (m)<input id="ad" type="number" step="0.1" value="8"></label>
+      </div></details>
+      <div class="row" style="margin-top:8px">
+        <label>Edge setback (m)<input id="sb" type="number" step="0.1" value="0.5"></label>
+        <label>Mounting<select id="mount"><option value="flush">Flush on pitched roof</option><option value="ballast" selected>Tilted racks – ballasted</option><option value="anchor">Tilted racks – anchored</option></select></label>
+        <label>Orientation<select id="orient"><option value="portrait">Portrait</option><option value="landscape">Landscape</option></select></label>
+        <label>Max panels (0 = fill)<input id="maxp" type="number" value="0"></label>
+      </div>
+      <p class="note" id="areaNote"></p>
+      <div class="row" style="margin-top:8px">
+        <label>Optimise for<select id="obj"><option value="ann">Annual energy</option><option value="worst">Worst-month energy</option></select></label>
+        <label>&nbsp;<button class="btn" id="bOpt">Find optimal design</button></label>
+      </div>
+      <div id="optTable"></div>
+    </div>
+    <div class="card"><h2>Budget &amp; cost</h2>
+      <div class="row">
+        <label>Panel price ($ each)<input id="pprice" type="number" value="130"></label>
+        <label>Other equipment &amp; install ($/kWp)<input id="bos" type="number" value="550"></label>
+        <label>Battery ($/kWh)<input id="bprice" type="number" value="220"></label>
+        <label>Budget limit ($, 0 = none)<input id="budget" type="number" value="0"></label>
+      </div>
+      <div id="costOut" style="margin-top:10px"></div>
+      <p class="note">Placeholder prices — replace with real quotes.</p>
+    </div>
+    <div class="card"><h2>Layout</h2><div id="layoutKpi"></div><div class="scroll" id="plan"></div>
+      <p class="note" id="planNote"></p></div>
+  </aside>
+
+  <aside class="drawer right" id="d-power" role="dialog" aria-label="Power &amp; weight" tabindex="-1">
+    <div class="dh"><h2>Power &amp; weight</h2><button class="btn sec x" data-close="power" aria-label="Close">✕</button></div>
+    <div class="card"><h2>Generation</h2>
+      <div class="row">
+        <label>Soiling loss (%)<input id="soil" type="number" value="3"></label>
+        <label>Mismatch (%)<input id="mism" type="number" value="2"></label>
+        <label>DC wiring (%)<input id="wire" type="number" value="1.5"></label>
+        <label>Inverter / charge eff. (%)<input id="eff" type="number" value="95"></label>
+      </div>
+      <div id="powKpi" style="margin-top:12px"></div><div id="powChart"></div><div id="powTable"></div></div>
+    <div class="card"><h2>Weight &amp; structural loads</h2>
+      <div class="row">
+        <label>Design gust speed (m/s)<input id="wind" type="number" value="30"></label>
+        <label>Roof zone<select id="zone"><option value="1">Field ×1.0</option><option value="1.5">Edge ×1.5</option><option value="2">Corner ×2.0</option></select></label>
+        <label>Ground snow (kN/m²)<input id="snow" type="number" step="0.1" value="0"></label>
+        <label>Racking (kg/m² of module)<input id="rack" type="number" step="0.5" value="4"></label>
+      </div>
+      <div id="wtOut" style="margin-top:12px"></div></div>
+  </aside>
+
+  <aside class="drawer right" id="d-system" role="dialog" aria-label="Electrical design" tabindex="-1">
+    <div class="dh"><h2>Electrical design</h2><button class="btn sec x" data-close="system" aria-label="Close">✕</button></div>
+    <div class="card"><h2>System &amp; load</h2>
+      <div class="row">
+        <label>System type<select id="stype"><option value="off">Off-grid / hybrid (MPPT + battery + inverter)</option><option value="grid">Grid-tied string inverter</option></select></label>
+        <label>Daily energy use (kWh/day)<input id="load" type="number" step="0.1" value="6"></label>
+        <label>Peak AC load (W)<input id="peak" type="number" value="2500"></label>
+        <label>AC voltage (V)<select id="vac"><option>230</option><option>120</option></select></label>
+        <label>Design low temp (°C)<input id="tmin" type="number" value="5"></label>
+        <label>Design high temp (°C)<input id="tmax" type="number" value="30"></label>
+      </div>
+      <h3>MPPT controller / inverter input</h3>
+      <label>Library<select id="clib"></select></label>
+      <div class="row" style="margin-top:8px">
+        <label>Max PV voltage (V)<input id="cvmax" type="number" value="150"></label>
+        <label>Min MPPT voltage (V)<input id="cvmin" type="number" value="66"></label>
+        <label>Max input Isc (A)<input id="cisc" type="number" value="50"></label>
+        <label>Max array power (W)<input id="cpw" type="number" value="4000"></label>
+        <label>Output current (A) – off-grid<input id="ciout" type="number" value="70"></label>
+        <label>AC rating (W) – grid-tied<input id="cac" type="number" value="3000"></label>
+      </div>
+      <div id="batIn">
+      <h3>Battery bank</h3>
+      <div class="row">
+        <label>Bank voltage<select id="vbat"><option>12</option><option>24</option><option selected>48</option></select></label>
+        <label>Battery unit<select id="blib"></select></label>
+        <label>Unit voltage (V)<input id="bv1" type="number" step="0.1" value="51.2"></label>
+        <label>Unit capacity (Ah)<input id="bah" type="number" value="100"></label>
+        <label>Usable DoD (%)<input id="dod" type="number" value="90"></label>
+        <label>Round-trip eff. (%)<input id="beff" type="number" value="95"></label>
+        <label>Autonomy (days)<input id="aut" type="number" step="0.5" value="1"></label>
+      </div></div>
+      <h3>Cable runs (one-way, m)</h3>
+      <div class="row">
+        <label>Array → combiner/controller<input id="lstr" type="number" value="15"></label>
+        <label>Controller → battery bus<input id="lmppt" type="number" value="2"></label>
+        <label>Battery ↔ inverter<input id="lbat" type="number" value="1.5"></label>
+      </div>
+    </div>
+    <div class="card"><h2>Design results</h2><div id="sysOut"></div></div>
+  </aside>
+
+  <aside class="drawer right" id="d-export" role="dialog" aria-label="Export &amp; share" tabindex="-1">
+    <div class="dh"><h2>Export &amp; share</h2><button class="btn sec x" data-close="export" aria-label="Close">✕</button></div>
+    <div class="card"><h2>Share link</h2>
+      <p class="note" style="margin-top:0">Anyone opening the link gets a copy of this project (zones, panels, system, costs).</p>
+      <input id="shareUrl" readonly aria-label="Share link" placeholder="…">
+      <div class="btns"><button class="btn" id="bShare">Create &amp; copy link</button></div>
+      <p class="note" id="shareNote" aria-live="polite"></p></div>
+    <div class="card"><h2>Project file</h2>
+      <div class="btns" style="margin-top:0"><button class="btn" id="bJson">Download project (.json)</button>
+        <label class="filebtn">Open project…<input type="file" id="importFile" class="sr" accept=".json,application/json"></label></div>
+      <p class="note">The project is also autosaved in this browser.</p></div>
+    <div class="card"><h2>Reports</h2>
+      <div class="btns" style="margin-top:0"><button class="btn" id="bPrint">Print / save report as PDF</button><button class="btn sec" id="bCsv">Download bill of materials (.csv)</button></div></div>
+    <div class="card"><h2>Project</h2>
+      <div class="btns" style="margin-top:0"><button class="btn sec" id="bReset">Start a new project</button></div></div>
+  </aside>
+
+  <aside class="drawer right wide" id="d-diagram" role="dialog" aria-label="Wiring diagram" tabindex="-1">
+    <div class="dh"><h2>Wiring diagram <small style="color:var(--mut);font-weight:400">— generated from the electrical design</small></h2><button class="btn sec x" data-close="diagram" aria-label="Close">✕</button></div>
+    <div class="card">
+      <div class="btns" style="margin:0 0 10px"><button class="btn" id="bSvg">Download SVG</button></div>
+      <p class="note" id="diagSum" style="margin:0 0 8px" aria-live="polite"></p>
+      <div class="scroll" id="diag"></div>
+      <p class="note">Schematic only. Not a permit drawing. Conductor, OCPD and isolator ratings must follow the local code (NEC 690/705/706, IEC 60364-7-712 / 62548).</p>
+    </div>
+  </aside>
+</div>
+
+<div id="tour" role="dialog" aria-modal="true" aria-labelledby="tourTitle" hidden>
+  <div class="tour-ring"></div>
+  <div class="tour-card" tabindex="-1">
+    <h3 id="tourTitle"></h3><p id="tourText"></p>
+    <div class="btns" id="tourEx" style="margin-top:0"><button class="btn sec" id="tourExample">Load an example project</button></div>
+    <div class="tour-nav"><span id="tourN"></span><span class="grow"></span>
+      <button class="btn sec" id="tourSkip">Skip tutorial</button><button class="btn sec" id="tourBack">Back</button><button class="btn" id="tourNext">Next</button></div>
+  </div>
+</div>
+<div id="report"></div>
+<noscript style="position:fixed;inset:60px 0 0;padding:24px;background:#fff;color:#111;z-index:5000">This planner needs JavaScript.</noscript>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+<script src="js/i18n.js?v=1.0.0"></script>
+<script src="js/data.js?v=1.0.0"></script>
+<script src="js/solar.js?v=1.0.0"></script>
+<script src="js/layout.js?v=1.0.0"></script>
+<script src="js/compute.js?v=1.0.0"></script>
+<script src="js/render.js?v=1.0.0"></script>
+<script src="js/diagram.js?v=1.0.0"></script>
+<script src="js/map.js?v=1.0.0"></script>
+<script src="js/project.js?v=1.0.0"></script>
+<script src="js/tour.js?v=1.0.0"></script>
+<script src="js/theme.js?v=1.0.0"></script>
+<script src="js/main.js?v=1.0.0"></script>
+</body>
+</html>
